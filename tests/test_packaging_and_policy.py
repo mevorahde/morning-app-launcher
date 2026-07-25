@@ -137,20 +137,34 @@ def test_official_actions_use_flexible_numeric_major_policy() -> None:
     assert all(re.fullmatch(r"actions/[a-z0-9-]+@v[1-9][0-9]*", value) for value in uses)
 
 
-def test_manual_build_workflow_is_unsigned_artifact_only() -> None:
+def test_manual_build_workflow_creates_only_unsigned_portable_artifacts() -> None:
     document = _load_yaml(BUILD_WORKFLOW)
     text = BUILD_WORKFLOW.read_text(encoding="utf-8")
+    steps = _workflow_steps(document)
+    uploads = [step for step in steps if "upload-artifact" in str(step.get("uses", ""))]
 
     assert document["permissions"] == {"contents": "read"}
-    assert "workflow_dispatch" in document["on"]
-    assert "--onefile" in text
+    assert document["on"] == {"workflow_dispatch": ""}
+    assert "--onedir" in text
+    assert "--onefile" not in text
     assert "--windowed" in text
     assert "--name MorningAppLauncher" in text
     assert "--collect-data morning_app_launcher" in text
     assert "morning-app-launcher.ico" in text
+    assert '$directory = "release-output\\MorningAppLauncher"' in text
+    assert '"$directory\\MorningAppLauncher.exe"' in text
+    assert "Compress-Archive -LiteralPath $directory -DestinationPath $archive" in text
     assert "Get-FileHash" in text
-    assert "MorningAppLauncher.exe.sha256" in text
-    assert "upload-artifact" in text
+    assert "MorningAppLauncher-portable-windows.zip.sha256" in text
+    assert len(uploads) == 1
+    assert uploads[0]["with"] == {
+        "name": "MorningAppLauncher-portable-windows",
+        "path": (
+            "release-output/MorningAppLauncher-portable-windows.zip\n"
+            "release-output/MorningAppLauncher-portable-windows.zip.sha256\n"
+        ),
+        "if-no-files-found": "error",
+    }
     assert "gh release" not in text.lower()
     assert "softprops/action-gh-release" not in text.lower()
     assert "signtool" not in text.lower()

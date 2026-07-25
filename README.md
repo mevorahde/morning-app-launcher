@@ -9,7 +9,8 @@ routine with a privacy-conscious Tkinter workflow that remains easy to inspect a
 ## Features
 
 - Add and remove multiple applications at once.
-- See friendly application names with `Ready` or `Missing` status.
+- Edit friendly application names without changing their launch paths.
+- See application names with `Ready` or `Missing` status.
 - Open selected ready applications or every ready application.
 - Continue a batch when one application is missing or fails to open.
 - Store versioned configuration with atomic writes and safe legacy migration.
@@ -51,6 +52,7 @@ process. The GUI starts only through the guarded `main()` entry point.
 
 - `Enter`: open selected ready entries
 - `Delete`: request removal of selected entries
+- `F2`: edit the name of the single selected entry
 - `Ctrl+O`: add applications
 - `Ctrl+A`: select all entries
 - `F5`: refresh status
@@ -84,13 +86,20 @@ The primary configuration file is:
 ```
 
 If `LOCALAPPDATA` is unavailable, the application falls back to the equivalent per-user Windows
-local application-data directory. The JSON document is versioned and stores the executable paths
-selected by the local user. It must never be committed to source control.
+local application-data directory. The JSON document is versioned and stores each immutable
+executable path with its editable display name. Display names may be duplicated because
+executable-path identity remains authoritative. The configuration must never be committed to
+source control.
 
 On first start, when JSON configuration does not exist, the application looks for the legacy
 ignored `save.txt` in the current working directory. Migration de-duplicates entries, writes JSON
 atomically, and always leaves the legacy file unchanged. Failed migration, malformed JSON, and
 unsupported schema versions are reported without silently overwriting user data.
+
+Existing version 1 JSON configuration is also migrated automatically: each initial name is derived
+from the executable filename using the original display behavior, order and paths are preserved,
+and the version 2 document is replaced atomically. Editing a name never renames, moves, or modifies
+the executable itself.
 
 ## Privacy and security model
 
@@ -123,12 +132,17 @@ Windows with Python 3.10, 3.11, 3.12, and 3.13.
 
 ## Windows executable artifact
 
-The manual **Build Windows executable** GitHub Actions workflow builds one windowed
-`MorningAppLauncher.exe`, creates a SHA-256 checksum beside it, and uploads only those two files as
-a workflow artifact. It does not publish a GitHub Release.
+The manual **Build portable Windows application** GitHub Actions workflow creates a windowed
+PyInstaller one-folder build, packages it as `MorningAppLauncher-portable-windows.zip`, generates a
+SHA-256 checksum for that ZIP, and uploads only the ZIP and checksum as workflow artifacts. It does
+not publish a GitHub Release.
 
-The executable is **unsigned**. Windows SmartScreen may warn before opening it. The workflow does
-not perform code signing, and the project does not claim bit-for-bit reproducible binaries.
+Extract the ZIP and keep the complete `MorningAppLauncher` folder together: its support files are
+required beside the application. Launch `MorningAppLauncher.exe` inside that extracted folder.
+The executable is **unsigned**, so Windows SmartScreen may warn before opening it. The workflow
+does not perform code signing, and the project does not claim bit-for-bit reproducible binaries.
+This portable one-folder layout avoids the temporary `_MEI` extraction and cleanup performed by
+PyInstaller one-file applications.
 
 For a local packaging experiment, install the separate bounded release tools with
 `.[release]`. Never commit generated executables, checksums, specifications, build directories, or

@@ -64,7 +64,7 @@ class ApplicationController:
         return tuple(
             ApplicationStatus(
                 index=index,
-                name=application.path.stem or application.path.name or "Application",
+                name=application.name,
                 ready=self._is_launchable(application),
             )
             for index, application in enumerate(self._applications)
@@ -134,6 +134,17 @@ class ApplicationController:
         self._applications = updated
         self._event_logger.event(OperationalEvent.REMOVE_COMPLETED, removed=len(selected))
         return len(selected)
+
+    def rename(self, index: int, name: str) -> Application:
+        if index < 0 or index >= len(self._applications):
+            raise InvalidSelection("Select one application to rename.")
+        renamed = self._applications[index].renamed(name)
+        updated = list(self._applications)
+        updated[index] = renamed
+        self._store.save(updated)
+        self._applications = updated
+        self._event_logger.event(OperationalEvent.RENAME_COMPLETED)
+        return renamed
 
     def launch_one(self, index: int) -> LaunchSummary:
         return self.launch_indices([index])

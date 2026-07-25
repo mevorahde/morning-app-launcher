@@ -1,4 +1,4 @@
-name: Build Windows executable
+name: Build portable Windows application
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
         run: python -m pip install -e ".[release]"
       - name: Check dependency consistency
         run: python -m pip check
-      - name: Build unsigned windowed executable
+      - name: Build unsigned portable windowed application
         shell: pwsh
         run: |
           $icon = (Resolve-Path "src/morning_app_launcher/resources/morning-app-launcher.ico").Path
@@ -32,7 +32,7 @@ jobs:
           python -m PyInstaller `
             --noconfirm `
             --clean `
-            --onefile `
+            --onedir `
             --windowed `
             --name MorningAppLauncher `
             --icon $icon `
@@ -42,18 +42,27 @@ jobs:
             --workpath build/pyinstaller `
             --specpath build/pyinstaller `
             $entry
+      - name: Package portable directory
+        shell: pwsh
+        run: |
+          $directory = "release-output\MorningAppLauncher"
+          $archive = "release-output\MorningAppLauncher-portable-windows.zip"
+          if (-not (Test-Path -LiteralPath "$directory\MorningAppLauncher.exe" -PathType Leaf)) {
+            throw "Portable executable was not produced."
+          }
+          Compress-Archive -LiteralPath $directory -DestinationPath $archive
       - name: Generate SHA-256 checksum
         shell: pwsh
         run: |
-          $executable = "release-output\MorningAppLauncher.exe"
-          $checksum = "release-output\MorningAppLauncher.exe.sha256"
-          $hash = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -LiteralPath $checksum -Value "$hash  MorningAppLauncher.exe" -Encoding ascii -NoNewline
-      - name: Upload unsigned executable and checksum
+          $archive = "release-output\MorningAppLauncher-portable-windows.zip"
+          $checksum = "$archive.sha256"
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath $checksum -Value "$hash  MorningAppLauncher-portable-windows.zip" -Encoding ascii -NoNewline
+      - name: Upload portable ZIP and checksum
         uses: actions/upload-artifact@v7
         with:
-          name: MorningAppLauncher-windows-unsigned
+          name: MorningAppLauncher-portable-windows
           path: |
-            release-output/MorningAppLauncher.exe
-            release-output/MorningAppLauncher.exe.sha256
+            release-output/MorningAppLauncher-portable-windows.zip
+            release-output/MorningAppLauncher-portable-windows.zip.sha256
           if-no-files-found: error

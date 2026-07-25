@@ -33,6 +33,7 @@ class OperationalEvent(Enum):
     APPLICATION_CLOSED = "application_closed"
     STATUS_REFRESHED = "status_refreshed"
     ADD_COMPLETED = "add_completed"
+    RENAME_COMPLETED = "rename_completed"
     REMOVE_COMPLETED = "remove_completed"
     LAUNCH_COMPLETED = "launch_completed"
 
