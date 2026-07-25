@@ -16,12 +16,14 @@ from .errors import (
     ConfigurationReadError,
     ConfigurationWriteError,
     InvalidApplicationPath,
+    InvalidDisplayName,
     MigrationError,
     UnsupportedConfigurationError,
 )
 from .models import Application, deduplicate
 
-CONFIGURATION_VERSION = 1
+CONFIGURATION_VERSION = 2
+LEGACY_JSON_CONFIGURATION_VERSION = 1
 APPLICATION_DIRECTORY = "MorningAppLauncher"
 CONFIGURATION_FILENAME = "config.json"
 
@@ -74,22 +76,43 @@ class JsonApplicationStore:
         if not isinstance(document, dict):
             raise ConfigurationReadError("The saved configuration has an invalid format.")
         version = document.get("version")
-        if version != CONFIGURATION_VERSION:
+        if version not in (LEGACY_JSON_CONFIGURATION_VERSION, CONFIGURATION_VERSION):
             raise UnsupportedConfigurationError(
                 "The saved configuration version is not supported."
             )
         values = document.get("applications")
-        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        if not isinstance(values, list):
             raise ConfigurationReadError("The saved configuration has an invalid format.")
         try:
-            return deduplicate(Application.from_text(value) for value in values)
-        except InvalidApplicationPath as exc:
+            if version == LEGACY_JSON_CONFIGURATION_VERSION:
+                if not all(isinstance(value, str) for value in values):
+                    raise ConfigurationReadError(
+                        "The saved configuration has an invalid format."
+                    )
+                applications = deduplicate(Application.from_text(value) for value in values)
+                self.save(applications)
+                return applications
+            if not all(
+                isinstance(value, dict)
+                and set(value) == {"path", "name"}
+                and isinstance(value["path"], str)
+                and isinstance(value["name"], str)
+                for value in values
+            ):
+                raise ConfigurationReadError("The saved configuration has an invalid format.")
+            return deduplicate(
+                Application.from_text(value["path"], value["name"]) for value in values
+            )
+        except (InvalidApplicationPath, InvalidDisplayName) as exc:
             raise ConfigurationReadError("The saved configuration has an invalid format.") from exc
 
     def save(self, applications: list[Application]) -> None:
         document = {
             "version": CONFIGURATION_VERSION,
-            "applications": [str(application.path) for application in applications],
+            "applications": [
+                {"path": str(application.path), "name": application.name}
+                for application in applications
+            ],
         }
         temporary_path: Path | None = None
         try:
@@ -139,7 +162,13 @@ class LegacyConfigurationMigrator:
                 Application.from_text(line) for line in text.splitlines() if line.strip()
             )
             self.destination.save(applications)
-        except (OSError, UnicodeError, InvalidApplicationPath, ConfigurationError) as exc:
+        except (
+            OSError,
+            UnicodeError,
+            InvalidApplicationPath,
+            InvalidDisplayName,
+            ConfigurationError,
+        ) as exc:
             raise MigrationError(
                 "The legacy configuration could not be migrated and was left unchanged."
             ) from exc

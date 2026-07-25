@@ -29,6 +29,10 @@ class InvalidApplicationPath(ApplicationError):
     """A selected application path is invalid or unavailable."""
 
 
+class InvalidDisplayName(ApplicationError):
+    """An application display name is invalid."""
+
+
 class DuplicateApplication(ApplicationError):
     """An application is already present in the collection."""
 

@@ -31,6 +31,7 @@ def test_empty_state_and_initial_button_enablement() -> None:
 
     assert state.empty_message is not None
     assert not state.actions.remove_selected
+    assert not state.actions.edit_name
     assert not state.actions.open_selected
     assert not state.actions.open_all
 
@@ -53,8 +54,10 @@ def test_ready_and_missing_rows_control_button_enablement(tmp_path: Path) -> Non
     ]
     assert initial.actions.open_all
     assert missing_selected.actions.remove_selected
+    assert missing_selected.actions.edit_name
     assert not missing_selected.actions.open_selected
     assert mixed_selected.actions.open_selected
+    assert not mixed_selected.actions.edit_name
 
     missing_only, _controller, _launcher = presenter_with([Application(missing)])
     assert not missing_only.state().actions.open_all
@@ -83,6 +86,23 @@ def test_remove_confirmation_and_multi_remove(tmp_path: Path) -> None:
     assert "cancelled" in cancelled.message.lower()
     assert "Removed 2" in removed.message
     assert controller.list_applications() == (applications[1],)
+
+
+def test_edit_name_cancel_validation_success_and_selection_preservation(tmp_path: Path) -> None:
+    application = Application(tmp_path / "app.exe")
+    presenter, controller, _launcher = presenter_with([application])
+    presenter.select([0])
+
+    cancelled = presenter.edit_name(None)
+    invalid = presenter.edit_name(" \n ")
+    renamed = presenter.edit_name("  Unicode ☀ name  ")
+
+    assert "cancelled" in cancelled.message.lower()
+    assert "line breaks" in invalid.message.lower() or "enter" in invalid.message.lower()
+    assert renamed.rows[0].name == "Unicode ☀ name"
+    assert renamed.selected == (0,)
+    assert renamed.actions.edit_name
+    assert controller.list_applications()[0].path == application.path
 
 
 def test_partial_launch_message_contains_counts_not_private_paths(tmp_path: Path) -> None:
@@ -128,6 +148,7 @@ def test_keyboard_bindings_and_command_router_route_expected_commands() -> None:
         "<Delete>": Command.REMOVE_SELECTED,
         "<Control-o>": Command.ADD,
         "<Control-a>": Command.SELECT_ALL,
+        "<F2>": Command.EDIT_NAME,
         "<F5>": Command.REFRESH,
         "<Escape>": Command.CLEAR_SELECTION,
     }

@@ -6,7 +6,7 @@ import tkinter as tk
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from ..controller import ApplicationController
 from .presentation import (
@@ -32,6 +32,7 @@ class MainWindow:
         self._router = CommandRouter(
             {
                 Command.ADD: self._add,
+                Command.EDIT_NAME: self._edit_name,
                 Command.REMOVE_SELECTED: self._remove_selected,
                 Command.OPEN_SELECTED: self._open_selected,
                 Command.OPEN_ALL: self._open_all,
@@ -81,7 +82,7 @@ class MainWindow:
             takefocus=True,
             height=8,
         )
-        self._tree.heading("name", text="Application")
+        self._tree.heading("name", text="Application name")
         self._tree.heading("status", text="Status")
         self._tree.column("name", minwidth=220, width=460, stretch=True)
         self._tree.column("status", minwidth=80, width=100, stretch=False, anchor="center")
@@ -101,13 +102,14 @@ class MainWindow:
 
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=4, column=0, sticky="ew", pady=(12, 10))
-        for column in range(5):
+        for column in range(6):
             button_frame.columnconfigure(column, weight=1)
         self._add_button(button_frame, Command.ADD, "Add applications", 0)
-        self._add_button(button_frame, Command.REMOVE_SELECTED, "Remove selected", 1)
-        self._add_button(button_frame, Command.OPEN_SELECTED, "Open selected", 2)
-        self._add_button(button_frame, Command.OPEN_ALL, "Open all", 3)
-        self._add_button(button_frame, Command.REFRESH, "Refresh status", 4)
+        self._add_button(button_frame, Command.EDIT_NAME, "Edit name", 1)
+        self._add_button(button_frame, Command.REMOVE_SELECTED, "Remove selected", 2)
+        self._add_button(button_frame, Command.OPEN_SELECTED, "Open selected", 3)
+        self._add_button(button_frame, Command.OPEN_ALL, "Open all", 4)
+        self._add_button(button_frame, Command.REFRESH, "Refresh status", 5)
 
         ttk.Separator(frame).grid(row=5, column=0, sticky="ew")
         ttk.Label(
@@ -172,6 +174,23 @@ class MainWindow:
         )
         self._render(self._presenter.remove_selected(confirmed))
 
+    def _edit_name(self) -> None:
+        selected = self._selected_indices()
+        state = self._presenter.select(selected)
+        if len(selected) != 1:
+            self._render(self._presenter.edit_name(None), rebuild_rows=False)
+            return
+        current_name = state.rows[selected[0]].name
+        name = simpledialog.askstring(
+            "Edit application name",
+            "Application name:",
+            initialvalue=current_name,
+            parent=self._root,
+        )
+        self._render(self._presenter.edit_name(name))
+        self._tree.focus(str(selected[0]))
+        self._tree.focus_set()
+
     def _open_selected(self) -> None:
         self._presenter.select(self._selected_indices())
         self._render(self._presenter.open_selected(), rebuild_rows=False)
@@ -197,6 +216,10 @@ class MainWindow:
             self._tree.delete(*self._tree.get_children())
             for row in state.rows:
                 self._tree.insert("", "end", iid=str(row.index), values=(row.name, row.status))
+            selected_items = tuple(str(index) for index in state.selected)
+            if selected_items:
+                self._tree.selection_set(selected_items)
+                self._tree.focus(selected_items[0])
             if state.empty_message:
                 self._empty_message.set(state.empty_message)
                 self._tree.grid_remove()
@@ -205,6 +228,7 @@ class MainWindow:
                 self._empty_label.grid_remove()
                 self._tree.grid()
         self._message.set(state.message)
+        self._set_enabled(Command.EDIT_NAME, state.actions.edit_name)
         self._set_enabled(Command.REMOVE_SELECTED, state.actions.remove_selected)
         self._set_enabled(Command.OPEN_SELECTED, state.actions.open_selected)
         self._set_enabled(Command.OPEN_ALL, state.actions.open_all)

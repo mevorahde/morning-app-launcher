@@ -27,15 +27,18 @@ def test_operational_log_contains_only_events_and_counts(tmp_path: Path) -> None
     )
 
     controller.load()
+    controller.rename(0, "Private renamed display value")
     controller.launch_ready()
     controller.close()
 
     contents = (log_directory / LOG_FILENAME).read_text(encoding="utf-8")
     assert "application_started" in contents
     assert "launch_completed" in contents
+    assert "rename_completed" in contents
     assert "entries=1" in contents
     assert str(tmp_path) not in contents
     assert private_path.name not in contents
+    assert "Private renamed display value" not in contents
 
 
 def test_unknown_count_names_are_not_logged(tmp_path: Path) -> None:

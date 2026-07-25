@@ -13,6 +13,7 @@ from ..errors import ApplicationError
 
 class Command(Enum):
     ADD = "add"
+    EDIT_NAME = "edit_name"
     REMOVE_SELECTED = "remove_selected"
     OPEN_SELECTED = "open_selected"
     OPEN_ALL = "open_all"
@@ -27,6 +28,7 @@ KEY_BINDINGS: Mapping[str, Command] = {
     "<Delete>": Command.REMOVE_SELECTED,
     "<Control-o>": Command.ADD,
     "<Control-a>": Command.SELECT_ALL,
+    "<F2>": Command.EDIT_NAME,
     "<F5>": Command.REFRESH,
     "<Escape>": Command.CLEAR_SELECTION,
 }
@@ -42,6 +44,7 @@ class ApplicationRow:
 
 @dataclass(frozen=True, slots=True)
 class ActionAvailability:
+    edit_name: bool
     remove_selected: bool
     open_selected: bool
     open_all: bool
@@ -101,6 +104,20 @@ class WindowPresenter:
                 self._message = f"Removed {removed} application(s)."
         return self.state()
 
+    def edit_name(self, name: str | None) -> WindowState:
+        if len(self._selected) != 1:
+            self._message = "Select one application to rename."
+        elif name is None:
+            self._message = "Rename cancelled. No applications were changed."
+        else:
+            try:
+                self._controller.rename(self._selected[0], name)
+            except ApplicationError as exc:
+                self._message = str(exc)
+            else:
+                self._message = "Application name updated."
+        return self.state()
+
     def open_selected(self) -> WindowState:
         if not self._selected:
             self._message = "Select one or more ready applications to open."
@@ -151,6 +168,7 @@ class WindowPresenter:
         selected_set = set(self._selected)
         has_ready_selection = any(row.ready and row.index in selected_set for row in rows)
         actions = ActionAvailability(
+            edit_name=len(self._selected) == 1,
             remove_selected=bool(self._selected),
             open_selected=has_ready_selection,
             open_all=any(row.ready for row in rows),
